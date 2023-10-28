@@ -131,7 +131,7 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 
 	if recordDir != "" {
 		os.MkdirAll(recordDir, 0755)
-		cmdFfmpeg := exec.Command("./ffmpeg", "-use_wallclock_as_timestamps", "1", "-i", fmt.Sprintf("http://127.0.0.1%s%s", mjpegAddr, mjpegPath), "-f", "lavfi", "-i", "anullsrc", "-c:v", "libx264", "-vf", "format=yuv420p", "-crf", "30", "-maxrate", "800k", "-g", "30", "-fflags", "nobuffer", "-c:a", "aac", "-b:a", "1k", "-f", "segment", "-segment_time", "3600", "-strftime", "1", path.Join(recordDir, "%Y-%m-%d_%H-%M-%S.mp4"))
+		cmdFfmpeg := exec.Command("./ffmpeg", "-use_wallclock_as_timestamps", "1", "-i", fmt.Sprintf("http://127.0.0.1%s%s", mjpegAddr, mjpegPath), "-f", "lavfi", "-i", "anullsrc", "-c:v", "libx264", "-vf", "format=yuv420p, drawtext=text='%{localtime\\:%Y/%m/%d %H\\\\\\:%M\\\\\\:%S}':x=0:y=0:fontsize=24:fontcolor=white:fontfile=./Monaco.ttf", "-crf", "30", "-maxrate", "800k", "-g", "30", "-fflags", "nobuffer", "-c:a", "aac", "-b:a", "1k", "-f", "segment", "-segment_time", "3600", "-strftime", "1", path.Join(recordDir, "%Y-%m-%d_%H-%M-%S.mp4"))
 		if err := cmdFfmpeg.Start(); err == nil {
 			defer cmdFfmpeg.Process.Signal(os.Interrupt)
 			go cmdFfmpeg.Wait()
