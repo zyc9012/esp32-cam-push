@@ -7,7 +7,7 @@
 //            Partial images will be transmitted if image exceeds buffer size
 //
 //            You must select partition scheme from the board menu that has at least 3MB APP space.
-//            Face Recognition is DISABLED for ESP32 and ESP32-S2, because it takes up from 15 
+//            Face Recognition is DISABLED for ESP32 and ESP32-S2, because it takes up from 15
 //            seconds to process single frame. Face Detection is ENABLED if PSRAM is enabled as well
 
 // ===================
@@ -45,6 +45,65 @@ const uint16_t port = 0;
 void setupLedFlash(int pin);
 void sendCameraFrames(const IPAddress& server, uint16_t port);
 
+void scanWiFi() {
+  int n = WiFi.scanNetworks();
+  if (n == 0) {
+    Serial.println("No networks found");
+  } else {
+    Serial.print(n);
+    Serial.println(" networks found");
+    Serial.println("Nr | SSID                             | RSSI | CH | Encryption");
+    for (int i = 0; i < n; ++i) {
+      // Print SSID and RSSI for each network found
+      Serial.printf("%2d",i + 1);
+      Serial.print(" | ");
+      Serial.printf("%-32.32s", WiFi.SSID(i).c_str());
+      Serial.print(" | ");
+      Serial.printf("%4d", WiFi.RSSI(i));
+      Serial.print(" | ");
+      Serial.printf("%2d", WiFi.channel(i));
+      Serial.print(" | ");
+      switch (WiFi.encryptionType(i)) {
+      case WIFI_AUTH_OPEN:
+        Serial.print("open");
+        break;
+      case WIFI_AUTH_WEP:
+        Serial.print("WEP");
+        break;
+      case WIFI_AUTH_WPA_PSK:
+        Serial.print("WPA");
+        break;
+      case WIFI_AUTH_WPA2_PSK:
+        Serial.print("WPA2");
+        break;
+      case WIFI_AUTH_WPA_WPA2_PSK:
+        Serial.print("WPA+WPA2");
+        break;
+      case WIFI_AUTH_WPA2_ENTERPRISE:
+        Serial.print("WPA2-EAP");
+        break;
+      case WIFI_AUTH_WPA3_PSK:
+        Serial.print("WPA3");
+        break;
+      case WIFI_AUTH_WPA2_WPA3_PSK:
+        Serial.print("WPA2+WPA3");
+        break;
+      case WIFI_AUTH_WAPI_PSK:
+        Serial.print("WAPI");
+        break;
+      default:
+        Serial.print("unknown");
+      }
+      Serial.println();
+      delay(10);
+    }
+  }
+  Serial.println("");
+
+  // Delete the scan result to free memory for code below.
+  WiFi.scanDelete();
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.setDebugOutput(true);
@@ -77,7 +136,7 @@ void setup() {
   config.fb_location = CAMERA_FB_IN_PSRAM;
   config.jpeg_quality = 12;
   config.fb_count = 1;
-  
+
   // if PSRAM IC present, init with UXGA resolution and higher JPEG quality
   //                      for larger pre-allocated frame buffer.
   if(config.pixel_format == PIXFORMAT_JPEG){
@@ -121,6 +180,7 @@ void setup() {
   setupLedFlash(LED_GPIO_NUM);
 #endif
 
+  scanWiFi();
   WiFi.begin(ssid, password);
   WiFi.setSleep(false);
 
