@@ -125,6 +125,7 @@ func handleCamConnect(conn net.Conn, config Config) {
 			}
 		}
 	})
+	mux.Handle(config.MjpegPath+"/records/", http.StripPrefix(config.MjpegPath+"/records/", http.FileServer(http.Dir(config.RecordDir))))
 
 	srv := &http.Server{Addr: config.MjpegAddr, Handler: mux}
 	go srv.ListenAndServe()
