@@ -14,7 +14,6 @@ import (
 	"os/exec"
 	"path"
 	"sync"
-	"time"
 )
 
 const multipartBoundary = "123456789000000000000987654321"
@@ -54,13 +53,7 @@ func handleCamConnect(conn net.Conn, config Config) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 
-	streamConsumers := make([]chan []byte, 0)
-
-	defer func() {
-		for _, consumer := range streamConsumers {
-			close(consumer)
-		}
-	}()
+	var streamConsumers []chan []byte
 
 	removeStreamConsumer := func(consumer chan []byte) {
 		target := -1
@@ -70,8 +63,10 @@ func handleCamConnect(conn net.Conn, config Config) {
 				return
 			}
 		}
-		streamConsumers[target] = streamConsumers[len(streamConsumers)-1]
-		streamConsumers = streamConsumers[:len(streamConsumers)-1]
+		if target >= 0 {
+			streamConsumers[target] = streamConsumers[len(streamConsumers)-1]
+			streamConsumers = streamConsumers[:len(streamConsumers)-1]
+		}
 	}
 
 	go func() {
@@ -113,19 +108,18 @@ func handleCamConnect(conn net.Conn, config Config) {
 		multipartWriter.SetBoundary(multipartBoundary)
 
 		for {
-			select {
-			case imageBytes := <-receiverChan:
-				header := textproto.MIMEHeader{}
-				header.Add("Content-Type", "image/jpeg")
-				part, err := multipartWriter.CreatePart(header)
-				if err != nil {
-					return
-				}
-				_, err = part.Write(imageBytes)
-				if err != nil {
-					return
-				}
-			case <-time.After(time.Second * 10):
+			imageBytes, ok := <-receiverChan
+			if !ok {
+				return
+			}
+			header := textproto.MIMEHeader{}
+			header.Add("Content-Type", "image/jpeg")
+			part, err := multipartWriter.CreatePart(header)
+			if err != nil {
+				return
+			}
+			_, err = part.Write(imageBytes)
+			if err != nil {
 				return
 			}
 		}
@@ -134,6 +128,11 @@ func handleCamConnect(conn net.Conn, config Config) {
 	srv := &http.Server{Addr: config.MjpegAddr, Handler: mux}
 	go srv.ListenAndServe()
 	defer func() {
+		for _, consumer := range streamConsumers {
+			close(consumer)
+		}
+		streamConsumers = nil
+
 		srv.Shutdown(context.TODO())
 		currHttpServer = nil
 	}()
