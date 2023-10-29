@@ -22,13 +22,14 @@ var currConn net.Conn
 var currHttpServer *http.Server
 
 type Config struct {
-	CamAddr       string
-	MjpegAddr     string
-	MjpegPath     string
-	RecordDir     string
-	RecordSegment string
-	FfmpegPath    string
-	FontPath      string
+	CamAddr        string
+	MjpegAddr      string
+	MjpegPath      string
+	MjpegFrameRate string
+	RecordDir      string
+	RecordSegment  string
+	FfmpegPath     string
+	FontPath       string
 }
 
 func handleCamConnect(conn net.Conn, config Config) {
@@ -143,9 +144,9 @@ func handleCamConnect(conn net.Conn, config Config) {
 
 	if config.RecordDir != "" {
 		os.MkdirAll(config.RecordDir, 0755)
-		cmdFfmpeg := exec.Command(config.FfmpegPath, "-use_wallclock_as_timestamps", "1", "-i", fmt.Sprintf("http://127.0.0.1%s%s", config.MjpegAddr, config.MjpegPath),
+		cmdFfmpeg := exec.Command(config.FfmpegPath, "-r", config.MjpegFrameRate, "-i", fmt.Sprintf("http://127.0.0.1%s%s", config.MjpegAddr, config.MjpegPath),
 			"-f", "lavfi", "-i", "anullsrc",
-			"-c:v", "libx264", "-vf", "format=yuv420p, drawtext=text='%{localtime\\:%Y/%m/%d %H\\\\\\:%M\\\\\\:%S}':x=0:y=0:fontsize=24:fontcolor=white:fontfile='"+config.FontPath+"'", "-crf", "30", "-maxrate", "800k", "-r", "15",
+			"-c:v", "libx264", "-vf", "format=yuv420p, drawtext=text='%{localtime\\:%Y/%m/%d %H\\\\\\:%M\\\\\\:%S}':x=0:y=0:fontsize=24:fontcolor=white:fontfile='"+config.FontPath+"'", "-crf", "30",
 			"-c:a", "aac", "-b:a", "1k",
 			"-f", "segment", "-segment_time", config.RecordSegment, "-strftime", "1",
 			path.Join(config.RecordDir, "%Y-%m-%d_%H-%M.flv"))
@@ -167,6 +168,7 @@ func main() {
 	flag.StringVar(&config.CamAddr, "cam-addr", ":40001", "camera connect address")
 	flag.StringVar(&config.MjpegAddr, "mjpeg-addr", ":40002", "mjpeg address")
 	flag.StringVar(&config.MjpegPath, "mjpeg-path", "/cam", "mjpeg path")
+	flag.StringVar(&config.MjpegFrameRate, "mjpeg-fr", "15", "mjpeg frame rate")
 	flag.StringVar(&config.RecordDir, "record-dir", "", "dir to put recording files")
 	flag.StringVar(&config.RecordSegment, "record-seg", "3600", "segment duration of recording files")
 	flag.StringVar(&config.FfmpegPath, "ffmpeg-path", "ffmpeg", "path to the ffmpeg executable")
