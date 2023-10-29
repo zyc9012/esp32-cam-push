@@ -17,10 +17,21 @@ import (
 	"time"
 )
 
+const multipartBoundary = "123456789000000000000987654321"
+
 var currConn net.Conn
 var currHttpServer *http.Server
 
-func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, rtmpAddr string) {
+type Config struct {
+	CamAddr    string
+	MjpegAddr  string
+	MjpegPath  string
+	RecordDir  string
+	FfmpegPath string
+	FontPath   string
+}
+
+func handleCamConnect(conn net.Conn, config Config) {
 	defer func() {
 		conn.Close()
 		currConn = nil
@@ -38,7 +49,7 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 		currHttpServer = nil
 	}
 
-	log.Printf("mjpeg address: %s%s\n", mjpegAddr, mjpegPath)
+	log.Printf("mjpeg address: %s%s\n", config.MjpegAddr, config.MjpegPath)
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
@@ -66,7 +77,7 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 	go func() {
 		defer wg.Done()
 
-		multipartReader := multipart.NewReader(conn, "123456789000000000000987654321")
+		multipartReader := multipart.NewReader(conn, multipartBoundary)
 		for {
 			nextPart, err := multipartReader.NextRawPart()
 			if err != nil {
@@ -88,8 +99,8 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 	}()
 
 	mux := http.NewServeMux()
-	mux.HandleFunc(mjpegPath, func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("Content-Type", "multipart/x-mixed-replace;boundary=123456789000000000000987654321")
+	mux.HandleFunc(config.MjpegPath, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "multipart/x-mixed-replace;boundary="+multipartBoundary)
 		w.Header().Set("Connection", "Keep-Alive")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 
@@ -99,7 +110,7 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 		defer removeStreamConsumer(receiverChan)
 
 		multipartWriter := multipart.NewWriter(w)
-		multipartWriter.SetBoundary("123456789000000000000987654321")
+		multipartWriter.SetBoundary(multipartBoundary)
 
 		for {
 			select {
@@ -120,7 +131,7 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 		}
 	})
 
-	srv := &http.Server{Addr: mjpegAddr, Handler: mux}
+	srv := &http.Server{Addr: config.MjpegAddr, Handler: mux}
 	go srv.ListenAndServe()
 	defer func() {
 		srv.Shutdown(context.TODO())
@@ -129,14 +140,14 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 
 	currHttpServer = srv
 
-	if recordDir != "" {
-		os.MkdirAll(recordDir, 0755)
-		cmdFfmpeg := exec.Command("./ffmpeg", "-use_wallclock_as_timestamps", "1", "-i", fmt.Sprintf("http://127.0.0.1%s%s", mjpegAddr, mjpegPath),
+	if config.RecordDir != "" {
+		os.MkdirAll(config.RecordDir, 0755)
+		cmdFfmpeg := exec.Command(config.FfmpegPath, "-use_wallclock_as_timestamps", "1", "-i", fmt.Sprintf("http://127.0.0.1%s%s", config.MjpegAddr, config.MjpegPath),
 			"-f", "lavfi", "-i", "anullsrc",
-			"-c:v", "libx264", "-vf", "format=yuv420p, drawtext=text='%{localtime\\:%Y/%m/%d %H\\\\\\:%M\\\\\\:%S}':x=0:y=0:fontsize=24:fontcolor=white:fontfile=./Monaco.ttf", "-crf", "30", "-maxrate", "800k", "-r", "15",
+			"-c:v", "libx264", "-vf", "format=yuv420p, drawtext=text='%{localtime\\:%Y/%m/%d %H\\\\\\:%M\\\\\\:%S}':x=0:y=0:fontsize=24:fontcolor=white:fontfile='"+config.FontPath+"'", "-crf", "30", "-maxrate", "800k", "-r", "15",
 			"-c:a", "aac", "-b:a", "1k",
 			"-f", "segment", "-segment_time", "3600", "-strftime", "1",
-			path.Join(recordDir, "%Y-%m-%d_%H-%M.mp4"))
+			path.Join(config.RecordDir, "%Y-%m-%d_%H-%M.mp4"))
 		if err := cmdFfmpeg.Start(); err == nil {
 			defer cmdFfmpeg.Process.Signal(os.Interrupt)
 			go cmdFfmpeg.Wait()
@@ -151,21 +162,22 @@ func handleCamConnect(conn net.Conn, recordDir, mjpegAddr, mjpegPath, flvAddr, r
 }
 
 func main() {
-	recordDir := flag.String("record-dir", "", "dir to put recording files")
-	camAddr := flag.String("cam-addr", ":40001", "camera connect address")
-	mjpegAddr := flag.String("mjpeg-addr", ":40002", "mjpeg address")
-	mjpegPath := flag.String("mjpeg-path", "/cam", "mjpeg path")
-	flvAddr := flag.String("flv-addr", ":40003", "transcoded flv stream address")
-	rtmpAddr := flag.String("rtmp-addr", "127.0.0.1:40004", "rtmp address for internal usage")
+	var config Config
+	flag.StringVar(&config.CamAddr, "cam-addr", ":40001", "camera connect address")
+	flag.StringVar(&config.MjpegAddr, "mjpeg-addr", ":40002", "mjpeg address")
+	flag.StringVar(&config.MjpegPath, "mjpeg-path", "/cam", "mjpeg path")
+	flag.StringVar(&config.RecordDir, "record-dir", "", "dir to put recording files")
+	flag.StringVar(&config.FfmpegPath, "ffmpeg-path", "ffmpeg", "path to the ffmpeg executable")
+	flag.StringVar(&config.FontPath, "font-path", "Monaco.ttf", "path to the font file used by ffmpeg to render timestamp")
 	flag.Parse()
 
-	listener, err := net.Listen("tcp", *camAddr)
+	listener, err := net.Listen("tcp", config.CamAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer listener.Close()
 
-	log.Println("waiting for camera connection on", *camAddr)
+	log.Println("waiting for camera connection on", config.CamAddr)
 
 	for {
 		conn, err := listener.Accept()
@@ -174,6 +186,6 @@ func main() {
 		}
 		log.Println("new camera connection", conn.RemoteAddr().String())
 
-		go handleCamConnect(conn, *recordDir, *mjpegAddr, *mjpegPath, *flvAddr, *rtmpAddr)
+		go handleCamConnect(conn, config)
 	}
 }
