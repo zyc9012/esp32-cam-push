@@ -22,12 +22,13 @@ var currConn net.Conn
 var currHttpServer *http.Server
 
 type Config struct {
-	CamAddr    string
-	MjpegAddr  string
-	MjpegPath  string
-	RecordDir  string
-	FfmpegPath string
-	FontPath   string
+	CamAddr       string
+	MjpegAddr     string
+	MjpegPath     string
+	RecordDir     string
+	RecordSegment string
+	FfmpegPath    string
+	FontPath      string
 }
 
 func handleCamConnect(conn net.Conn, config Config) {
@@ -145,7 +146,7 @@ func handleCamConnect(conn net.Conn, config Config) {
 			"-f", "lavfi", "-i", "anullsrc",
 			"-c:v", "libx264", "-vf", "format=yuv420p, drawtext=text='%{localtime\\:%Y/%m/%d %H\\\\\\:%M\\\\\\:%S}':x=0:y=0:fontsize=24:fontcolor=white:fontfile='"+config.FontPath+"'", "-crf", "30", "-maxrate", "800k", "-r", "15",
 			"-c:a", "aac", "-b:a", "1k",
-			"-f", "segment", "-segment_time", "3600", "-strftime", "1",
+			"-f", "segment", "-segment_time", config.RecordSegment, "-strftime", "1",
 			path.Join(config.RecordDir, "%Y-%m-%d_%H-%M.mp4"))
 		if err := cmdFfmpeg.Start(); err == nil {
 			defer cmdFfmpeg.Process.Signal(os.Interrupt)
@@ -166,6 +167,7 @@ func main() {
 	flag.StringVar(&config.MjpegAddr, "mjpeg-addr", ":40002", "mjpeg address")
 	flag.StringVar(&config.MjpegPath, "mjpeg-path", "/cam", "mjpeg path")
 	flag.StringVar(&config.RecordDir, "record-dir", "", "dir to put recording files")
+	flag.StringVar(&config.RecordSegment, "record-seg", "3600", "segment duration of recording files")
 	flag.StringVar(&config.FfmpegPath, "ffmpeg-path", "ffmpeg", "path to the ffmpeg executable")
 	flag.StringVar(&config.FontPath, "font-path", "Monaco.ttf", "path to the font file used by ffmpeg to render timestamp")
 	flag.Parse()
