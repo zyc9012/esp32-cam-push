@@ -147,7 +147,7 @@ func handleCamConnect(conn net.Conn, config Config) {
 			"-c:v", "libx264", "-vf", "format=yuv420p, drawtext=text='%{localtime\\:%Y/%m/%d %H\\\\\\:%M\\\\\\:%S}':x=0:y=0:fontsize=24:fontcolor=white:fontfile='"+config.FontPath+"'", "-crf", "30", "-maxrate", "800k", "-r", "15",
 			"-c:a", "aac", "-b:a", "1k",
 			"-f", "segment", "-segment_time", config.RecordSegment, "-strftime", "1",
-			path.Join(config.RecordDir, "%Y-%m-%d_%H-%M.mp4"))
+			path.Join(config.RecordDir, "%Y-%m-%d_%H-%M.flv"))
 		if err := cmdFfmpeg.Start(); err == nil {
 			defer cmdFfmpeg.Process.Signal(os.Interrupt)
 			go cmdFfmpeg.Wait()
