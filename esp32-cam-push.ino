@@ -162,6 +162,9 @@ void setup() {
   pinMode(14, INPUT_PULLUP);
 #endif
 
+  Serial.print("Max heap: ");
+  Serial.println(heap_caps_get_free_size( MALLOC_CAP_SPIRAM ));
+
   // camera init
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
