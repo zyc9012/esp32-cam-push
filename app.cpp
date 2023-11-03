@@ -26,6 +26,7 @@
 #define LED_LEDC_CHANNEL 2 //Using different ledc channel/timer than camera
 
 #define PART_BOUNDARY "123456789000000000000987654321"
+static const char _STREAM_HANDSHAKE[] = { 0xa6, 0xf6, 0xa0, 0x7b, 0xe9, 0xb6, 0xd0, 0xe5, 0x73, 0x4e, 0x06, 0x59, 0xcf, 0xc7, 0xa3, 0xe9, 0xda, 0xca, 0xb5, 0x82, 0xf9, 0x11, 0xfe, 0xc7, 0x7f, 0xc0, 0xc4, 0x16, 0x57, 0x7d, 0xea, 0x06 };
 static const char *_STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
 static const char *_STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: %u\r\nX-Timestamp: %d.%06d\r\n\r\n";
@@ -144,6 +145,7 @@ void sendCameraFrames(const IPAddress& server, uint16_t port) {
     client.setTimeout(0);
     log_i("Sending camera stream");
     set_cam_conf();
+    client.write(_STREAM_HANDSHAKE, sizeof(_STREAM_HANDSHAKE));
     send_cam_stream(client);
     client.stop();
   }

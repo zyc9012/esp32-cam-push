@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"os/exec"
 	"path"
 	"sync"
+	"time"
 )
 
 const multipartBoundary = "123456789000000000000987654321"
@@ -33,6 +35,19 @@ type Config struct {
 }
 
 func handleCamConnect(conn net.Conn, config Config) {
+	// Verify conn
+	header := make([]byte, 32)
+	conn.SetReadDeadline(time.Now().Add(time.Second * 10))
+	_, err := conn.Read(header)
+	if err != nil || !bytes.Equal(header, []byte{0xa6, 0xf6, 0xa0, 0x7b, 0xe9, 0xb6, 0xd0, 0xe5, 0x73, 0x4e, 0x06, 0x59, 0xcf, 0xc7, 0xa3, 0xe9, 0xda, 0xca, 0xb5, 0x82, 0xf9, 0x11, 0xfe, 0xc7, 0x7f, 0xc0, 0xc4, 0x16, 0x57, 0x7d, 0xea, 0x06}) {
+		conn.Close()
+		log.Println("illegal connection", conn.RemoteAddr().String())
+		return
+	}
+	conn.SetReadDeadline(time.Time{})
+
+	log.Println("new camera connection", conn.RemoteAddr().String())
+
 	defer func() {
 		conn.Close()
 		currConn = nil
@@ -188,7 +203,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println("new camera connection", conn.RemoteAddr().String())
 
 		go handleCamConnect(conn, config)
 	}
